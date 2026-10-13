@@ -12,7 +12,8 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 
-from flask import Flask, flash, g, redirect, render_template, request, url_for
+from flask import (Flask, abort, flash, g, redirect, render_template, request,
+                   url_for)
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 import auth
@@ -160,13 +161,106 @@ def get_request_history(user_id):
     ).fetchall()
 
 
-# Placeholders for now. Each stage replaces one of these with the real page.
-
-
 @app.route("/approvals")
 @login_required("manager", "admin")
 def approvals():
-    return render_template("placeholder.html", title="Approval Queue", stage=4)
+    """
+    The approval queue: Pending requests from the people who report to me.
+    For a manager that's their employees; for the admin it's the managers.
+    """
+    db = get_db()
+    pending = db.execute(
+        """
+        SELECT r.id, u.name AS requester_name, s.name AS system_name,
+               r.reason, r.created_at,
+               CAST(julianday('now') - julianday(r.created_at) AS INTEGER) AS days_waiting
+        FROM access_requests r
+        JOIN users u   ON u.id = r.requester_id
+        JOIN systems s ON s.id = r.system_id
+        WHERE r.status = 'Pending'
+          AND u.manager_id = ?          -- only my direct reports
+          AND r.requester_id <> ?       -- never my own request
+        ORDER BY r.created_at           -- oldest first: they've waited longest
+        """,
+        (g.user["id"], g.user["id"]),
+    ).fetchall()
+
+    # A short history of what I've decided, so I can see what just happened.
+    recent = db.execute(
+        """
+        SELECT u.name AS requester_name, s.name AS system_name, r.status,
+               r.decision_comment, r.decided_at
+        FROM access_requests r
+        JOIN users u   ON u.id = r.requester_id
+        JOIN systems s ON s.id = r.system_id
+        WHERE r.decided_by_id = ?
+        ORDER BY r.decided_at DESC
+        LIMIT 10
+        """,
+        (g.user["id"],),
+    ).fetchall()
+
+    return render_template("approvals.html", pending=pending, recent=recent)
+
+
+@app.route("/approvals/<int:request_id>/decide", methods=["POST"])
+@login_required("manager", "admin")
+def decide(request_id):
+    """
+    Approve or reject one request. <int:request_id> in the URL becomes the
+    request_id argument. Every rule is checked here on the server, because
+    anyone can send this POST without using our page.
+    """
+    db = get_db()
+    action = request.form.get("action")
+    comment = request.form.get("comment", "").strip() or None  # empty -> NULL
+
+    if action not in ("approve", "reject"):
+        abort(400)
+    if comment and len(comment) > MAX_REASON_LENGTH:
+        flash(f"Please keep the comment under {MAX_REASON_LENGTH} characters.", "error")
+        return redirect(url_for("approvals"))
+
+    req = db.execute(
+        """
+        SELECT r.id, r.requester_id, r.status, u.manager_id, u.name AS requester_name,
+               s.name AS system_name
+        FROM access_requests r
+        JOIN users u   ON u.id = r.requester_id
+        JOIN systems s ON s.id = r.system_id
+        WHERE r.id = ?
+        """,
+        (request_id,),
+    ).fetchone()
+
+    if req is None:
+        abort(404)
+    # Permission checks: it must be my direct report's request, and not my own.
+    if req["manager_id"] != g.user["id"] or req["requester_id"] == g.user["id"]:
+        abort(403)
+
+    new_status = "Approved" if action == "approve" else "Rejected"
+    # "AND status = 'Pending'" makes this safe if two clicks arrive at once:
+    # only the first one changes a row, and rowcount tells us if we did.
+    cur = db.execute(
+        """
+        UPDATE access_requests
+        SET status = ?, decided_by_id = ?, decision_comment = ?, decided_at = ?
+        WHERE id = ? AND status = 'Pending'
+        """,
+        (new_status, g.user["id"], comment, now_utc(), request_id),
+    )
+    db.commit()
+
+    if cur.rowcount == 0:
+        flash("That request was already decided.", "error")
+    else:
+        flash(f"{new_status} {req['requester_name']}'s request for {req['system_name']}.",
+              "success")
+    return redirect(url_for("approvals"))
+
+
+# Placeholders for now. Each stage replaces one of these with the real page.
 
 
 @app.route("/admin/audit-log")

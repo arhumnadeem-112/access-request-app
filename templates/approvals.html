@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Approval Queue{% endblock %}
+
+{% block content %}
+<h1>Approval Queue</h1>
+<p class="muted">
+  {% if g.user.role == 'admin' %}
+    Pending requests from managers (they report to you).
+  {% else %}
+    Pending requests from your direct reports.
+  {% endif %}
+  Oldest first.
+</p>
+
+<section class="card">
+  {% if pending %}
+    <table>
+      <thead>
+        <tr>
+          <th>Requester</th>
+          <th>System</th>
+          <th>Reason</th>
+          <th>Submitted</th>
+          <th>Decision</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in pending %}
+          <tr>
+            <td>{{ r.requester_name }}</td>
+            <td>{{ r.system_name }}</td>
+            <td>{{ r.reason }}</td>
+            <td>
+              {{ r.created_at|nice_time }}<br>
+              <small class="muted">waiting {{ r.days_waiting }} day{{ '' if r.days_waiting == 1 else 's' }}</small>
+            </td>
+            <td>
+              {# One small form per row. It posts to /approvals/<id>/decide.
+                 Both buttons are named "action"; the one you click is the one sent. #}
+              <form method="post" action="{{ url_for('decide', request_id=r.id) }}" class="decision-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input name="comment" maxlength="500" placeholder="Comment (optional)"
+                       aria-label="Comment for {{ r.requester_name }}'s request">
+                <div class="decision-buttons">
+                  <button type="submit" name="action" value="approve" class="button button-approve">Approve</button>
+                  <button type="submit" name="action" value="reject" class="button button-reject">Reject</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Nothing waiting for you. 🎉</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Your recent decisions</h2>
+  {% if recent %}
+    <table>
+      <thead>
+        <tr><th>Requester</th><th>System</th><th>Status</th><th>Comment</th><th>Decided</th></tr>
+      </thead>
+      <tbody>
+        {% for r in recent %}
+          <tr>
+            <td>{{ r.requester_name }}</td>
+            <td>{{ r.system_name }}</td>
+            <td><span class="status status-{{ r.status|lower }}">{{ r.status }}</span></td>
+            <td>{{ r.decision_comment or '—' }}</td>
+            <td>{{ r.decided_at|nice_time }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted">Times are shown in UTC.</p>
+  {% else %}
+    <p class="muted">You haven't decided any requests yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
