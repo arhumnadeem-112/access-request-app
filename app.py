@@ -9,15 +9,23 @@ usually by filling in an HTML template from the templates/ folder.
 """
 import os
 import secrets
+import sqlite3
+from datetime import datetime, timezone
 
-from flask import Flask, g, redirect, render_template, url_for
+from flask import Flask, flash, g, redirect, render_template, request, url_for
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 import auth
 from auth import login_required
-from db import BASE_DIR, close_db
+from db import BASE_DIR, close_db, get_db
 
 SECRET_KEY_FILE = BASE_DIR / ".secret_key"
+MAX_REASON_LENGTH = 500
+
+
+def now_utc():
+    """Current time in the format we store in the database (UTC)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def load_secret_key():
@@ -54,6 +62,17 @@ app.teardown_appcontext(close_db)
 app.register_blueprint(auth.bp)
 
 
+@app.template_filter("nice_time")
+def nice_time(value):
+    """
+    Template filter: {{ some_timestamp | nice_time }}
+    Turns '2026-10-13 14:05:00' into '13 Oct 2026, 14:05'. Empty values show a dash.
+    """
+    if not value:
+        return "—"
+    return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").strftime("%d %b %Y, %H:%M")
+
+
 # ---------------------------------------------------------------------------
 # Pages
 # ---------------------------------------------------------------------------
@@ -66,11 +85,82 @@ def index():
     return redirect(auth.home_url(g.user))
 
 
-# Placeholders for now. Each stage replaces one of these with the real page.
-@app.route("/my-requests")
+@app.route("/my-requests", methods=["GET", "POST"])
 @login_required("employee", "manager")
 def my_requests():
-    return render_template("placeholder.html", title="My Requests", stage=3)
+    """
+    GET:  show the request form and this user's request history.
+    POST: validate and save a new request, then redirect back here
+          (Post/Redirect/Get, so refreshing the page doesn't resubmit).
+    """
+    db = get_db()
+    systems = db.execute("SELECT id, name FROM systems ORDER BY name").fetchall()
+
+    if request.method == "POST":
+        system_id = request.form.get("system_id", type=int)  # None if missing or not a number
+        reason = request.form.get("reason", "").strip()
+
+        # Validate on the server. The HTML 'required' attribute is only a
+        # convenience: anyone can send a POST without using our form.
+        error = None
+        if system_id not in {s["id"] for s in systems}:
+            error = "Please choose a system."
+        elif not reason:
+            error = "Please enter a reason."
+        elif len(reason) > MAX_REASON_LENGTH:
+            error = f"Please keep the reason under {MAX_REASON_LENGTH} characters."
+        elif db.execute(
+            "SELECT 1 FROM access_requests "
+            "WHERE requester_id = ? AND system_id = ? AND status = 'Pending'",
+            (g.user["id"], system_id),
+        ).fetchone():
+            error = "You already have a pending request for that system."
+
+        if error is None:
+            try:
+                db.execute(
+                    "INSERT INTO access_requests (requester_id, system_id, reason, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (g.user["id"], system_id, reason, now_utc()),
+                )
+                db.commit()
+            except sqlite3.IntegrityError:
+                # The unique index in schema.sql caught a duplicate that slipped
+                # past the check above (e.g. a double-click submitting twice at once).
+                error = "You already have a pending request for that system."
+
+        if error is None:
+            flash("Request submitted. Your manager will review it.", "success")
+            return redirect(url_for("my_requests"))
+
+        # Show the form again with the error and what they typed.
+        flash(error, "error")
+        history = get_request_history(g.user["id"])
+        return render_template("my_requests.html", systems=systems, history=history,
+                               form=request.form), 400
+
+    history = get_request_history(g.user["id"])
+    return render_template("my_requests.html", systems=systems, history=history, form={})
+
+
+def get_request_history(user_id):
+    """All of one user's requests, newest first, with system and decider names."""
+    return get_db().execute(
+        """
+        SELECT r.id, s.name AS system_name, r.reason, r.status,
+               r.created_at, r.decided_at, r.decision_comment,
+               d.name AS decided_by_name
+        FROM access_requests r
+        JOIN systems s     ON s.id = r.system_id
+        LEFT JOIN users d  ON d.id = r.decided_by_id   -- LEFT: Pending has no decider
+        WHERE r.requester_id = ?
+        ORDER BY r.created_at DESC
+        """,
+        (user_id,),
+    ).fetchall()
+
+
+# Placeholders for now. Each stage replaces one of these with the real page.
 
 
 @app.route("/approvals")

@@ -32,7 +32,18 @@ body {
 
 main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
 
-.card { background: #fff; border-radius: 8px; padding: 24px; }
+.card { background: #fff; border-radius: 8px; padding: 24px; margin-bottom: 24px; }
+.card label { display: block; margin-top: 12px; }
+.card select, .card textarea { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+
+/* Color-coded status labels */
+.status { padding: 2px 10px; border-radius: 999px; font-size: 0.85em; font-weight: 600; }
+.status-pending  { background: #fef3c7; color: #92400e; }
+.status-approved { background: #d1fae5; color: #065f46; }
+.status-rejected { background: #fee2e2; color: #991b1b; }
 .login-card { max-width: 360px; margin: 48px auto; }
 .login-card label { display: block; margin-top: 12px; }
 .login-card input { width: 100%; box-sizing: border-box; padding: 8px; }

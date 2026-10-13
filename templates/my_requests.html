@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}My Requests{% endblock %}
+
+{% block content %}
+<h1>My Requests</h1>
+
+<section class="card">
+  <h2>Request access</h2>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="system_id">System</label>
+    <select id="system_id" name="system_id" required>
+      <option value="">Choose a system…</option>
+      {% for system in systems %}
+        {# Keep the previous choice selected if the form is shown again after an error. #}
+        <option value="{{ system.id }}"
+                {% if form.get('system_id') == system.id|string %}selected{% endif %}>
+          {{ system.name }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <label for="reason">Reason</label>
+    <textarea id="reason" name="reason" rows="3" maxlength="500" required
+              placeholder="Why do you need access?">{{ form.get('reason', '') }}</textarea>
+
+    <button type="submit" class="button">Submit request</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>My request history</h2>
+  {% if history %}
+    <table>
+      <thead>
+        <tr>
+          <th>System</th>
+          <th>Reason</th>
+          <th>Status</th>
+          <th>Submitted</th>
+          <th>Decided by</th>
+          <th>Comment</th>
+          <th>Decided</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in history %}
+          <tr>
+            <td>{{ r.system_name }}</td>
+            <td>{{ r.reason }}</td>
+            {# The CSS class (status-pending, etc.) sets the badge color. #}
+            <td><span class="status status-{{ r.status|lower }}">{{ r.status }}</span></td>
+            <td>{{ r.created_at|nice_time }}</td>
+            <td>{{ r.decided_by_name or '—' }}</td>
+            <td>{{ r.decision_comment or '—' }}</td>
+            <td>{{ r.decided_at|nice_time }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted">Times are shown in UTC.</p>
+  {% else %}
+    <p class="muted">You haven't made any requests yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
