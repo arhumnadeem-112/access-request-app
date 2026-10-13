@@ -12,5 +12,8 @@ access.db
 .secret_key
 .env
 
+# Claude Code's per-machine permission settings
+.claude/settings.local.json
+
 # macOS clutter
 .DS_Store
