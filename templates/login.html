@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Log in{% endblock %}
+
+{% block content %}
+<div class="card login-card">
+  <h1>Log in</h1>
+  <form method="post">
+    {# Hidden CSRF token. Flask-WTF rejects any POST that's missing it. #}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="username">Username</label>
+    <input id="username" name="username" value="{{ username or '' }}"
+           autocomplete="username" required autofocus>
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password"
+           autocomplete="current-password" required>
+
+    <button type="submit" class="button">Log in</button>
+  </form>
+</div>
+{% endblock %}
