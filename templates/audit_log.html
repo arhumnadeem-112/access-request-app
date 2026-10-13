@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Audit Log{% endblock %}
+
+{% block content %}
+<h1>Audit Log</h1>
+
+{# method="get" puts the filters in the URL (?system_id=..&status=..).
+   GET only reads data, so it needs no CSRF token, and you can bookmark a view. #}
+<form method="get" class="card filters">
+  <div>
+    <label for="system_id">System</label>
+    <select id="system_id" name="system_id">
+      <option value="">All systems</option>
+      {% for s in systems %}
+        <option value="{{ s.id }}" {% if s.id == selected_system_id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="">All statuses</option>
+      {% for st in statuses %}
+        <option value="{{ st }}" {% if st == selected_status %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-actions">
+    <button type="submit" class="button">Filter</button>
+    <a href="{{ url_for('audit_log') }}">Clear</a>
+  </div>
+</form>
+
+<section class="card">
+  <p class="muted">{{ rows|length }} request{{ '' if rows|length == 1 else 's' }}, newest first. Times in UTC.</p>
+  {% if rows %}
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Requester</th>
+            <th>System</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th>Decided by</th>
+            <th>Decision comment</th>
+            <th>Created</th>
+            <th>Decided</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>{{ r.id }}</td>
+              <td>{{ r.requester_name }}</td>
+              <td>{{ r.system_name }}</td>
+              <td>{{ r.reason }}</td>
+              <td><span class="status status-{{ r.status|lower }}">{{ r.status }}</span></td>
+              <td>{{ r.decided_by_name or '—' }}</td>
+              <td>{{ r.decision_comment or '—' }}</td>
+              <td class="nowrap">{{ r.created_at|nice_time }}</td>
+              <td class="nowrap">{{ r.decided_at|nice_time }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No requests match these filters.</p>
+  {% endif %}
+</section>
+{% endblock %}

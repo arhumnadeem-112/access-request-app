@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+<p class="muted">{{ total }} requests in total.</p>
+
+{# Single numbers are shown as plain "stat tiles"; they don't need a chart. #}
+<section class="stats">
+  <a class="stat" href="{{ url_for('audit_log', status='Pending') }}">
+    <span class="stat-label">Pending</span>
+    <span class="stat-value">{{ status_counts.Pending }}</span>
+    <span class="stat-note">awaiting a decision</span>
+  </a>
+  <div class="stat">
+    <span class="stat-label">Avg. time to decision</span>
+    <span class="stat-value">{{ avg_decision_time }}</span>
+    <span class="stat-note">from request to approve/reject</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Oldest open request</span>
+    {% if oldest %}
+      <span class="stat-value">{{ oldest.days_waiting }} day{{ '' if oldest.days_waiting == 1 else 's' }}</span>
+      <span class="stat-note">{{ oldest.requester_name }} · {{ oldest.system_name }}<br>
+        since {{ oldest.created_at|nice_time }}</span>
+    {% else %}
+      <span class="stat-value">—</span>
+      <span class="stat-note">nothing pending</span>
+    {% endif %}
+  </div>
+</section>
+
+<section class="charts">
+  <div class="card">
+    <h2>Approved vs rejected</h2>
+    <div class="chart-box"><canvas id="decisionsChart"
+      aria-label="Approved {{ status_counts.Approved }}, Rejected {{ status_counts.Rejected }}" role="img"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Requests by system</h2>
+    <div class="chart-box"><canvas id="systemsChart"
+      aria-label="Number of requests for each system" role="img"></canvas></div>
+  </div>
+</section>
+
+{# Chart.js is served from our own static folder, so this works offline. #}
+<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
+<script>
+  // |tojson turns the Python dict from app.py into a JavaScript object, safely escaped.
+  const data = {{ chart_data|tojson }};
+
+  // Same green/red as the status labels elsewhere in the app.
+  const GREEN = "#059669", RED = "#dc2626", NAVY = "#1e3a5f";
+
+  // Doughnut: approved vs rejected. The counts go into the legend labels, so
+  // the chart doesn't rely on color alone.
+  new Chart(document.getElementById("decisionsChart"), {
+    type: "doughnut",
+    data: {
+      labels: data.decisions.labels.map((label, i) => `${label} (${data.decisions.values[i]})`),
+      datasets: [{
+        data: data.decisions.values,
+        backgroundColor: [GREEN, RED],
+        borderColor: "#fff",
+        borderWidth: 2,          // thin white gap between the two slices
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      cutout: "60%",
+      plugins: { legend: { position: "bottom" } },
+    },
+  });
+
+  // Horizontal bar chart: one bar per system, all one color (it's one series).
+  new Chart(document.getElementById("systemsChart"), {
+    type: "bar",
+    data: {
+      labels: data.by_system.labels,
+      datasets: [{
+        label: "Requests",
+        data: data.by_system.values,
+        backgroundColor: NAVY,
+        borderRadius: 4,
+        maxBarThickness: 28,
+      }],
+    },
+    options: {
+      indexAxis: "y",            // bars go sideways, so long system names fit
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },   // one series: the title says what it is
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef0f3" } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+</script>
+{% endblock %}

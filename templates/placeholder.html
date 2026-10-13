@@ -1,9 +1,0 @@
-{# Temporary page. Each real screen replaces this in a later stage. #}
-{% extends "base.html" %}
-{% block title %}{{ title }}{% endblock %}
-
-{% block content %}
-<h1>{{ title }}</h1>
-<p>You're logged in as <strong>{{ g.user.username }}</strong> ({{ g.user.role }}).</p>
-<p class="muted">This page gets built in Stage {{ stage }}.</p>
-{% endblock %}

@@ -260,19 +260,137 @@ def decide(request_id):
     return redirect(url_for("approvals"))
 
 
-# Placeholders for now. Each stage replaces one of these with the real page.
+STATUSES = ["Pending", "Approved", "Rejected"]
 
 
 @app.route("/admin/audit-log")
 @login_required("admin")
 def audit_log():
-    return render_template("placeholder.html", title="Audit Log", stage=5)
+    """
+    Every request, with optional filters taken from the URL's query string,
+    e.g. /admin/audit-log?system_id=2&status=Pending (that's what a GET form sends).
+    Read-only: this page has no buttons that change anything.
+    """
+    db = get_db()
+    systems = db.execute("SELECT id, name FROM systems ORDER BY name").fetchall()
+
+    # Read the filters. Anything invalid is simply ignored (treated as "All").
+    system_id = request.args.get("system_id", type=int)
+    if system_id not in {s["id"] for s in systems}:
+        system_id = None
+    status = request.args.get("status")
+    if status not in STATUSES:
+        status = None
+
+    # Build the WHERE clause piece by piece. Values always go in `params` as
+    # ? placeholders, never pasted into the SQL text, so they can't inject SQL.
+    conditions, params = [], []
+    if system_id is not None:
+        conditions.append("r.system_id = ?")
+        params.append(system_id)
+    if status is not None:
+        conditions.append("r.status = ?")
+        params.append(status)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    rows = db.execute(
+        f"""
+        SELECT r.id, u.name AS requester_name, s.name AS system_name, r.reason,
+               r.status, d.name AS decided_by_name, r.decision_comment,
+               r.created_at, r.decided_at
+        FROM access_requests r
+        JOIN users u      ON u.id = r.requester_id
+        JOIN systems s    ON s.id = r.system_id
+        LEFT JOIN users d ON d.id = r.decided_by_id
+        {where}
+        ORDER BY r.created_at DESC
+        """,
+        params,
+    ).fetchall()
+
+    return render_template("audit_log.html", rows=rows, systems=systems,
+                           statuses=STATUSES, selected_system_id=system_id,
+                           selected_status=status)
+
+
+def format_duration(days):
+    """Turn a number of days (e.g. 1.37) into readable text like '1.4 days' or '5 hours'."""
+    if days is None:
+        return "—"
+    if days < 1:
+        hours = round(days * 24)
+        return f"{hours} hour{'' if hours == 1 else 's'}"
+    return f"{days:.1f} days"
 
 
 @app.route("/admin/dashboard")
 @login_required("admin")
 def dashboard():
-    return render_template("placeholder.html", title="Dashboard", stage=5)
+    """Summary numbers and chart data, all computed with SQL."""
+    db = get_db()
+
+    # How many requests in each status. Start every status at 0, so one with
+    # no requests still shows up.
+    status_counts = dict.fromkeys(STATUSES, 0)
+    for row in db.execute("SELECT status, COUNT(*) AS n FROM access_requests GROUP BY status"):
+        status_counts[row["status"]] = row["n"]
+
+    # Requests per system. LEFT JOIN keeps systems that have zero requests.
+    by_system = db.execute(
+        """
+        SELECT s.name, COUNT(r.id) AS n
+        FROM systems s
+        LEFT JOIN access_requests r ON r.system_id = s.id
+        GROUP BY s.id
+        ORDER BY n DESC, s.name
+        """
+    ).fetchall()
+
+    # Average time from request to decision. julianday() turns a timestamp
+    # into a number of days, so subtracting two gives the gap in days.
+    avg_days = db.execute(
+        """
+        SELECT AVG(julianday(decided_at) - julianday(created_at))
+        FROM access_requests
+        WHERE decided_at IS NOT NULL
+        """
+    ).fetchone()[0]
+
+    # The Pending request that has waited longest.
+    oldest = db.execute(
+        """
+        SELECT u.name AS requester_name, s.name AS system_name, r.created_at,
+               CAST(julianday('now') - julianday(r.created_at) AS INTEGER) AS days_waiting
+        FROM access_requests r
+        JOIN users u   ON u.id = r.requester_id
+        JOIN systems s ON s.id = r.system_id
+        WHERE r.status = 'Pending'
+        ORDER BY r.created_at
+        LIMIT 1
+        """
+    ).fetchone()
+
+    # Plain Python lists/dicts for the charts. The template turns this into
+    # JavaScript with the |tojson filter.
+    chart_data = {
+        "decisions": {
+            "labels": ["Approved", "Rejected"],
+            "values": [status_counts["Approved"], status_counts["Rejected"]],
+        },
+        "by_system": {
+            "labels": [row["name"] for row in by_system],
+            "values": [row["n"] for row in by_system],
+        },
+    }
+
+    return render_template(
+        "dashboard.html",
+        status_counts=status_counts,
+        total=sum(status_counts.values()),
+        avg_decision_time=format_duration(avg_days),
+        oldest=oldest,
+        chart_data=chart_data,
+    )
 
 
 # ---------------------------------------------------------------------------
