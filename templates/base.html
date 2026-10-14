@@ -12,19 +12,27 @@
     <a class="brand" href="{{ url_for('index') }}">Access Requests</a>
 
     {# g.user is set by auth.load_logged_in_user() before every request. #}
+    {# A macro is a reusable snippet. This one draws a nav link and marks it
+       "active" when it points at the page we're on (request.endpoint is the
+       name of the current route, e.g. 'my_requests'). #}
+    {% macro nav_link(endpoint, text) %}
+      <a href="{{ url_for(endpoint) }}"
+         {% if request.endpoint == endpoint %}class="active" aria-current="page"{% endif %}>{{ text }}</a>
+    {% endmacro %}
+
     {% if g.user %}
       <div class="nav-links">
         {# Show only the links this role can use. The server still checks
            permissions on every page; hiding links is just for convenience. #}
         {% if g.user.role == 'admin' %}
-          <a href="{{ url_for('dashboard') }}">Dashboard</a>
-          <a href="{{ url_for('audit_log') }}">Audit Log</a>
-          <a href="{{ url_for('approvals') }}">Approvals</a>
+          {{ nav_link('dashboard', 'Dashboard') }}
+          {{ nav_link('audit_log', 'Audit Log') }}
+          {{ nav_link('approvals', 'Approvals') }}
         {% elif g.user.role == 'manager' %}
-          <a href="{{ url_for('approvals') }}">Approval Queue</a>
-          <a href="{{ url_for('my_requests') }}">My Requests</a>
+          {{ nav_link('approvals', 'Approval Queue') }}
+          {{ nav_link('my_requests', 'My Requests') }}
         {% else %}
-          <a href="{{ url_for('my_requests') }}">My Requests</a>
+          {{ nav_link('my_requests', 'My Requests') }}
         {% endif %}
       </div>
 

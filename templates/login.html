@@ -4,6 +4,7 @@
 {% block content %}
 <div class="card login-card">
   <h1>Log in</h1>
+  <p class="muted">System Access Requests: request, approve and audit access to company systems.</p>
   <form method="post">
     {# Hidden CSRF token. Flask-WTF rejects any POST that's missing it. #}
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -16,7 +17,7 @@
     <input id="password" name="password" type="password"
            autocomplete="current-password" required>
 
-    <button type="submit" class="button">Log in</button>
+    <button type="submit" class="button button-primary button-block">Log in</button>
   </form>
 </div>
 {% endblock %}

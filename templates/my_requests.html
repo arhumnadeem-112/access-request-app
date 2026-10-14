@@ -25,14 +25,14 @@
     <textarea id="reason" name="reason" rows="3" maxlength="500" required
               placeholder="Why do you need access?">{{ form.get('reason', '') }}</textarea>
 
-    <button type="submit" class="button">Submit request</button>
+    <button type="submit" class="button button-primary">Submit request</button>
   </form>
 </section>
 
 <section class="card">
   <h2>My request history</h2>
   {% if history %}
-    <table>
+    <div class="table-scroll"><table>
       <thead>
         <tr>
           <th>System</th>
@@ -58,7 +58,7 @@
           </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     <p class="muted">Times are shown in UTC.</p>
   {% else %}
     <p class="muted">You haven't made any requests yet.</p>

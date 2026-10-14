@@ -14,7 +14,7 @@
 
 <section class="card">
   {% if pending %}
-    <table>
+    <div class="table-scroll"><table>
       <thead>
         <tr>
           <th>Requester</th>
@@ -50,16 +50,16 @@
           </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   {% else %}
-    <p class="muted">Nothing waiting for you. 🎉</p>
+    <p class="muted">Nothing waiting for you.</p>
   {% endif %}
 </section>
 
 <section class="card">
   <h2>Your recent decisions</h2>
   {% if recent %}
-    <table>
+    <div class="table-scroll"><table>
       <thead>
         <tr><th>Requester</th><th>System</th><th>Status</th><th>Comment</th><th>Decided</th></tr>
       </thead>
@@ -74,7 +74,7 @@
           </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     <p class="muted">Times are shown in UTC.</p>
   {% else %}
     <p class="muted">You haven't decided any requests yet.</p>
