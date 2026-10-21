@@ -10,12 +10,30 @@ Built with **Python + Flask**, a **SQLite** database (a single file), HTML templ
 
 ---
 
+## Screenshots
+
+The admin dashboard:
+
+![Admin dashboard](docs/screenshots/dashboard.png)
+
+The manager approval queue:
+
+![Manager approval queue](docs/screenshots/approval-queue.png)
+
+The employee My Requests page:
+
+![Employee My Requests page](docs/screenshots/my-requests.png)
+
+---
+
 ## 1. Setup (one time)
 
 You need Python 3 from python.org; it was built and tested with Python 3.15. Check with `python3 --version`.
 
 ```bash
-cd ~/Projects/access-request-app
+# Download the project and go into its folder
+git clone https://github.com/arhumnadeem-112/access-request-app.git
+cd access-request-app
 
 # Create a virtual environment: a private folder of packages just for this project
 python3 -m venv .venv
@@ -33,7 +51,7 @@ python seed.py
 ## 2. Run it
 
 ```bash
-cd ~/Projects/access-request-app
+cd access-request-app                # the folder you cloned in step 1
 source .venv/bin/activate            # needed in each new terminal window
 flask --app app run --debug
 ```
