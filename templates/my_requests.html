@@ -6,6 +6,9 @@
 
 <section class="card">
   <h2>Request access</h2>
+  {% if approver %}
+    <p class="muted">Your requests go to {{ approver.name }} for approval.</p>
+  {% endif %}
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
