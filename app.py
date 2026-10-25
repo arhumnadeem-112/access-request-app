@@ -96,6 +96,11 @@ def my_requests():
     """
     db = get_db()
     systems = db.execute("SELECT id, name FROM systems ORDER BY name").fetchall()
+    # Who approves my requests: my manager. If manager_id is NULL, "id = NULL"
+    # matches no row, so approver is None and the template hides the line.
+    approver = db.execute(
+        "SELECT name FROM users WHERE id = ?", (g.user["manager_id"],)
+    ).fetchone()
 
     if request.method == "POST":
         system_id = request.form.get("system_id", type=int)  # None if missing or not a number
@@ -138,10 +143,11 @@ def my_requests():
         flash(error, "error")
         history = get_request_history(g.user["id"])
         return render_template("my_requests.html", systems=systems, history=history,
-                               form=request.form), 400
+                               approver=approver, form=request.form), 400
 
     history = get_request_history(g.user["id"])
-    return render_template("my_requests.html", systems=systems, history=history, form={})
+    return render_template("my_requests.html", systems=systems, history=history,
+                           approver=approver, form={})
 
 
 def get_request_history(user_id):
